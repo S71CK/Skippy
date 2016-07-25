@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+ 
+# Version: 0.9
+#
+# - Current SSL/TLS tests: 
+#   Currently Validates: Heartbleed, Logjam, CRIME,POODLE, DROWN, Weak Cipher Suites enabled, NULL ciphers, MD5 signed certificates, 
+#   secure renegotiation checks, and self-signed certificate checks.
+#
+# Requires: 
+# - sslscan, SSLv2 enablement to test for stuff like DROWN, etc. SSLv2 is disabled on most decent
+#            modern operating systems, so make sure it's enabled to get the most out of this script.
+#
+# Known Issues Being Worked On: 56 bit detection.
+#
+# /**************************************************************************
+# *   Copyright 2016 by Coalfire Labs.                                      *
+# *   Written by Coalfire Labs 2016.
+# *   Thanks to David and his peanut butter                                 *
+# /**************************************************************************
+
+VERSION=0.9
+
+OPENSSLVERSION=$(openssl version)
+SSLSCANVERSION=$(sslscan --version | grep version | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g")
+
+
+if [ $# -ne 2 ]; then
+echo -e "\e[34m------------------------------------------------------\e[0m"
+#for i in {16..50} {50..16} ; do echo -en "\e[48;5;${i}m \e[0m" ; done ; echo
+echo -e "\e[93mSkippy - ($VERSION)\e[0m"
+echo -e "\e[93mBecause who doesn't love peanut butter. If you don't... Find another script. Commie.\e[0m"
+echo
+echo -e "- \e[1;4mCurrent Cryptographic Tests:\e[0m"
+echo -e   "Currently Validates: Heartbleed, Logjam, CRIME,POODLE, DROWN, Weak Cipher Suites enabled, NULL ciphers, MD5 signed certificates, secure renegotiation checks, and self-signed certificate checks."
+echo
+echo -e "- \e[1;4mRequirements:\e[0m"
+echo -e "sslscan, SSLv2 enablement to test for stuff like DROWN, etc. SSLv2 is disabled on most decent modern operating systems, so make sure it's enabled to get the most out of this script."
+echo 
+echo -e "- \e[1;4mUsage\e[0m: bash $0 IP PORT"
+echo
+echo -e "\e[34m------------------------------------------------------\e[0m"
+echo "Here is a rainbow. You better enjoy it."
+echo
+for i in {16..50} {50..16} ; do echo -en "\e[48;5;${i}m \e[0m" ; done ; echo
+echo
+   exit
+fi
+echo
+echo
+
+HOST=$1
+PORT=$2
+
+echo  [*] Analyzing SSL/TLS on $HOST:$PORT ...
+echo
+echo "This should take around 15 seconds... Give or take." 
+
+# This script runs sslcan once, stores the results to a log file and
+# analyzes that file for all the different tests. Afterwards, it removes the log file.
+# Feel free to modify comment out the "rm $LOGFILE" if you need  to observe the log file.
+# An error file is also created and stored in the home directory if anything goes wrong.
+
+DATE=$(date +%F_%R:%S)
+TARGET=$HOST:$PORT
+LOGFILE=sslscan\_$TARGET\_$DATE.log
+ERRFILE=sslscan\_$TARGET\_$DATE.err
+
+sslscan $HOST:$PORT > $LOGFILE 2> $ERRFILE
+
+#echo [*] Testing for SSLv2 ...
+cat $LOGFILE | grep "SSLv2"
+FOUND=`fgrep -c "SSLv2" $LOGFILE`
+  if [ $FOUND -eq 0 ]; then
+    echo
+  else
+    echo -e "\e[1;31m* VULNERABILITY FOUND: SSLv2 is in use. This host is vulnerable to the DROWN attack."
+  fi    
+
+#echo [*] Testing for SSLv3 ...
+#cat $LOGFILE | grep "SSLv3"
+#echo
+echo [*] Testing for NULL ciphers ...
+cat $LOGFILE | grep "NULL"
+echo
+echo [*] Testing for weak ciphers \(based on key length\) ...
+cat $LOGFILE | grep " 40"
+cat $LOGFILE | grep "56 bits"
+cat $LOGFILE | grep "112"
+echo
+echo -e "\e[1;31m* VULNERABILITY FOUND: The host utilizes ciphers that contain bit lenghts < 128 bits, meaning Weak Cipher Suites are enabled. The affected ciphers that are responsible for this vulnerability are listed above.\e[0m"
+echo [*] Testing for RC4 ciphers ...
+cat $LOGFILE | grep "RC4"
+echo 
+FOUND=`fgrep -c "RC4" $LOGFILE`
+  if [ $FOUND -eq 0 ]; then
+    echo
+  else
+    echo -e "\e[1;31m* VULNERABILITY FOUND: RC4 Ciphers Present. This host is vulnerable to Services Supporting Export Ciphers. (Logjam, CVE-2015-4000). The RC4 ciphers in use by the host are listed above.\e[0m"
+  fi    
+echo
+
+# Freak vulnerability check
+
+cat $LOGFILE | grep "RSA"
+echo 
+FOUND=`fgrep -c "RSA" $LOGFILE`
+  if [ $FOUND -eq 0 ]; then
+    echo
+  else
+    echo -e "\e[1;31m* VULNERABILITY FOUND: Weak RSA export-grade ciphers suites that utilize bit-legths < 512 bits are present. This leaves the host vulnerable to the FREAK vulnerability (CVE-2015-0204). The weak RSA ciphers in use by the host are listed above.\e[0m"
+  fi    
+echo
+echo "Testing for the CRIME vulnerability ..."
+cat $LOGFILE | grep "Compression enabled (CRIME)"
+FOUND=`fgrep -c "(CRIME)" $LOGFILE`
+  if [ $FOUND -eq 0 ]; then
+    echo
+  else
+    echo
+    echo -e "\e[1;31m* VULNERABILITY FOUND: Host has compression enabled, and is therefore affected by the CRIME vulnerability (CVE-2012-4929).\e[0m"
+  fi
+    
+echo [*] Testing for an MD5 signed certificate ...
+#cat $LOGFILE | grep -E 'MD5WithRSAEncryption|md5WithRSAEncryption'
+cat $LOGFILE | grep -i 'MD5WithRSAEncryption'
+
+echo 
+#echo [*] Checking preferred server ciphers ...
+cat $LOGFILE | sed '/Prefered Server Cipher(s):/,/^$/!d' | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[m|K]//g"
+
+echo "[*] Testing for Heartbleed Vulnerability..."
+echo R | openssl s_client -connect $HOST:$PORT -tlsextdebug 2>&1 | grep 'server extension "heartbeat" (id=15)' || echo safe
+echo
+
+echo -e "\e[1;33m---- See below for certificate information, and to check if Secure Renegotiation is supported ----\e[0m"
+echo [*] Testing for SSLv3/TLSv1 renegotiation vuln. \(CVE-2009-3555\) ...
+#echo [*] echo R \| openssl s_client -connect $HOST:$PORT \| grep "DONE"
+
+# Renegotiation details go to stderr (2>)
+echo
+echo R | openssl s_client -connect $HOST:$PORT | grep -E "Secure Renegotiation IS|DONE"
+echo
+#echo [*] New files created:
+#ls -l $LOGFILE
+if [ ! -s $ERRFILE ]; then
+        # Error file is empty
+        rm $ERRFILE
+else
+        ls -l $ERRFILE
+fi
+
+#Older line: openssl s_client -connect $HOST:$PORT -tlsextdebug 2>&1 | grep 'server extension "heartbeat" (id=15)' || echo safe
+
+rm $LOGFILE
+echo [*] done
+echo
