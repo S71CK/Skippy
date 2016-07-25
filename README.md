@@ -12,5 +12,3 @@ Requires:
 sslscan, SSLv2 enablement to test for stuff like DROWN, etc. SSLv2 is disabled on most decent modern operating systems, so make sure it's enabled to get the most out of this script.
 
 Known Issues Being Worked On: 56 bit detection.
-
-![Alt text](/root/SelfmadeScripts/ScreenOfScript.png?raw=true "In Action:")
