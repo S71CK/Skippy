@@ -1,9 +1,9 @@
 # Skippy
-A script made for validating multiple cryptographic vulnerabilities.
 
 Version: 0.9
 
-Current SSL/TLS tests: 
+A script made for validating multiple cryptographic vulnerabilities.
+
 Currently Validates: Heartbleed, Logjam, CRIME,POODLE, DROWN, Weak Cipher Suites enabled, NULL ciphers, MD5 signed certificates, secure renegotiation checks, and self-signed certificate checks.
 
 This script runs sslcan once, stores the results to a log file and analyzes that file for all the different tests. Afterwards, it removes the log file. Feel free to modify / comment out the "rm $LOGFILE" if you need  to observe the log file. An error file is also created and stored in the home directory if anything goes wrong.
