@@ -13,3 +13,4 @@ sslscan, SSLv2 enablement to test for stuff like DROWN, etc. SSLv2 is disabled o
 
 Known Issues Being Worked On: 56 bit detection.
 
+![Alt text](/root/SelfmadeScripts/ScreenOfScript.png?raw=true "In Action:")
